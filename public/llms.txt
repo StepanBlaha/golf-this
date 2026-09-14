@@ -1,0 +1,16 @@
+# Golf This!
+
+> A free browser-based isometric mini golf course builder and game. No registration.
+
+## Pages
+- [Play and build](/)
+- [Terms](/terms.html)
+- [Privacy](/privacy.html)
+
+## How it works
+Generate a random course with a clear path or build an 8 by 8 course using grass, blocks, sand, water, a tee, and a hole. Play with drag-to-putt or aim and power controls. Water adds a penalty stroke after taking a drop. Share links encode a copy of the course and an optional challenge score in the URL fragment. The current course is saved locally in the browser. There is no online course database or multiplayer server.
+
+## Operator
+Štěpán Bláha
+stepa15.b@gmail.com
+https://www.stepanblaha.com/

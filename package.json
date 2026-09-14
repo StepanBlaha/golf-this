@@ -1,0 +1,33 @@
+{
+  "name": "mini-golf-postcard",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 4319 --strictPort",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --host 127.0.0.1 --port 4319 --strictPort",
+    "test": "tsx --test src/*.test.ts",
+    "predev": "node scripts/generate-site.mjs",
+    "prebuild": "node scripts/generate-site.mjs",
+    "check:launch": "node scripts/generate-site.mjs --check",
+    "generate:og": "node scripts/generate-og.mjs"
+  },
+  "dependencies": {
+    "@fontsource/dm-sans": "^5.3.0",
+    "@fontsource/fredoka": "^5.3.0",
+    "@fontsource/space-mono": "^5.3.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.5.1",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.1",
+    "sharp": "^0.35.4",
+    "tsx": "^4.23.13",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.0"
+  }
+}
