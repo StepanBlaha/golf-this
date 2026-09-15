@@ -8,7 +8,7 @@
 - [Privacy](/privacy.html)
 
 ## How it works
-Generate a random course with a clear path or build an 8 by 8 course using grass, blocks, sand, water, a tee, and a hole. Play with drag-to-putt or aim and power controls. Water adds a penalty stroke after taking a drop. Share links encode a copy of the course and an optional challenge score in the URL fragment. The current course is saved locally in the browser. There is no online course database or multiplayer server.
+Generate a random course with a clear path or build an 8 by 8 course using grass, blocks, sand, water, a tee, and a hole. Play with drag-to-putt or aim and power controls. Water adds a penalty stroke after taking a drop. Share links encode a copy of the course and an optional challenge score in the URL fragment. Your own course is saved locally in the browser. Shared links open in play-only mode with no editing controls and do not overwrite the saved course. There is no online course database or multiplayer server.
 
 ## Operator
 Štěpán Bláha

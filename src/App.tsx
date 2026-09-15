@@ -29,7 +29,9 @@ function TileArt({x,y,type,highlight}:{x:number;y:number;type:Tile;highlight:boo
 }
 export default function App() {
   const [course,setCourse]=useState(initialCourse);
-  const [mode,setMode]=useState<'edit'|'play'>(()=>decodeCourse(location.hash)?'play':'edit');
+  const [isShared,setIsShared]=useState(()=>Boolean(decodeCourse(location.hash)));
+  const [selectedMode,setMode]=useState<'edit'|'play'>('edit');
+  const mode=isShared?'play':selectedMode;
   const [tool,setTool]=useState<Tool>('wall');
   const [hover,setHover]=useState<number|null>(null);
   const [history,setHistory]=useState<Course[]>([]);
@@ -49,10 +51,10 @@ export default function App() {
   const audioRef=useRef<AudioContext|null>(null);
   const moving=ball.status==='moving';
   useEffect(()=>{
-    const openShared=()=>{const next=decodeCourse(location.hash);if(next){setCourse(next);setMode('play');setHistory([]);setMessage('');}};
+    const openShared=()=>{const next=decodeCourse(location.hash);setIsShared(Boolean(next));setCourse(next??initialCourse());setMode(next?'play':'edit');setHistory([]);setMessage('');paintStroke.current=null;dragRef.current=null;setAim(null);};
     window.addEventListener('hashchange',openShared);return()=>window.removeEventListener('hashchange',openShared);
   },[]);
-  useEffect(()=>{try{localStorage.setItem('little-links-course',encodeCourse(course));}catch{}},[course]);
+  useEffect(()=>{if(isShared)return;try{localStorage.setItem('little-links-course',encodeCourse(course));}catch{}},[course,isShared]);
   useEffect(()=>{setBall(freshBall(course.start));setShots(0);setAim(null);},[course]);
   useEffect(()=>{
     if(!moving)return;
@@ -61,10 +63,10 @@ export default function App() {
     frame=requestAnimationFrame(tick);return()=>cancelAnimationFrame(frame);
   },[moving,course]);
   useEffect(()=>{if(shareValue){shareRef.current?.focus();shareRef.current?.select();}},[shareValue]);
-  function update(next:Course){next={...next,challenge:undefined};setHistory(h=>[...h,course].slice(-25));setCourse(next);setMessage('');}
+  function update(next:Course){if(isShared)return;next={...next,challenge:undefined};setHistory(h=>[...h,course].slice(-25));setCourse(next);setMessage('');}
   const currentCourse=course;
   function paint(x:number,y:number){
-    if(mode!=='edit'||x<0||x>7||y<0||y>7)return;
+    if(isShared||mode!=='edit'||x<0||x>7||y<0||y>7)return;
     const stroke=paintStroke.current;
     const course=stroke?.current??currentCourse;
     if(stroke?.seen.has(y*8+x))return;
@@ -137,7 +139,7 @@ export default function App() {
     <main>
       <aside className="workbench">
         <h1>{mode==='edit'?'Make it yours.':'Let’s putt!'}</h1>
-        <div className="mode-switch" aria-label="Course mode"><button aria-pressed={mode==='edit'} onClick={()=>{setMode('edit');reset();}}><strong>Build</strong></button><button aria-pressed={mode==='play'} onClick={()=>{setMode('play');reset();}}><strong>Play</strong> <span><ActionIcon kind="play"/></span></button></div>
+        {!isShared&&<div className="mode-switch" aria-label="Course mode"><button aria-pressed={mode==='edit'} onClick={()=>{setMode('edit');reset();}}><strong>Build</strong></button><button aria-pressed={mode==='play'} onClick={()=>{setMode('play');reset();}}><strong>Play</strong> <span><ActionIcon kind="play"/></span></button></div>}
         {mode==='edit'?<>
           <label className="field-label" htmlFor="course-name">Course name</label><input id="course-name" className="name-input" maxLength={48} value={course.name} onChange={e=>setCourse({...course,name:e.target.value,challenge:undefined})}/>
           <div className="field-label toolbox-label">Choose a tile</div>
