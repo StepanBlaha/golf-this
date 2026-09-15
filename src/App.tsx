@@ -40,7 +40,11 @@ export default function App() {
   const [angle,setAngle]=useState(-45);
   const [power,setPower]=useState(45);
   const [aim,setAim]=useState<Point|null>(null);
-  const [message,setMessage]=useState(location.hash&&!decodeCourse(location.hash)?'That course link is invalid. Here is a fresh course.':'');
+  const [toast,setToast]=useState({text:location.hash&&!decodeCourse(location.hash)?'That course link is invalid. Here is a fresh course.':'',id:0});
+  const [sharing,setSharing]=useState(false);
+  const sharingRef=useRef(false);
+  function setMessage(text:string){setToast(previous=>({text,id:previous.id+1}));}
+  useEffect(()=>{if(!toast.text||sharing)return;const timer=setTimeout(()=>setToast(current=>current.id===toast.id?{...current,text:''}:current),4500);return()=>clearTimeout(timer);},[toast,sharing]);
   const [shareValue,setShareValue]=useState('');
   const svgRef=useRef<SVGSVGElement>(null);
   const dragRef=useRef<Point|null>(null);
@@ -63,7 +67,7 @@ export default function App() {
     frame=requestAnimationFrame(tick);return()=>cancelAnimationFrame(frame);
   },[moving,course]);
   useEffect(()=>{if(shareValue){shareRef.current?.focus();shareRef.current?.select();}},[shareValue]);
-  function update(next:Course){if(isShared)return;next={...next,challenge:undefined};setHistory(h=>[...h,course].slice(-25));setCourse(next);setMessage('');}
+  function update(next:Course,feedback='Course updated'){if(isShared)return;next={...next,challenge:undefined};setHistory(h=>[...h,course].slice(-25));setCourse(next);setMessage(feedback);}
   const currentCourse=course;
   function paint(x:number,y:number){
     if(isShared||mode!=='edit'||x<0||x>7||y<0||y>7)return;
@@ -81,7 +85,7 @@ export default function App() {
     next.challenge=undefined;
     if(stroke){if(!stroke.changed){setHistory(h=>[...h,stroke.before].slice(-25));stroke.changed=true;}stroke.current=next;setCourse(next);setMessage('');}else update(next);
   }
-  function reset(){setBall(freshBall(course.start));setShots(0);setAim(null);setMessage('');}
+  function reset(feedback='Ready for another round'){setBall(freshBall(course.start));setShots(0);setAim(null);setMessage(feedback);}
   function shoot(v:Point){
     if(mode!=='play'||moving||ball.status!=='idle')return;
     const speed=Math.hypot(v.x,v.y);if(speed<.15)return;
@@ -113,12 +117,12 @@ export default function App() {
     if(dragRef.current)setAim({x:(dragRef.current.x-p.x)*2.4,y:(dragRef.current.y-p.y)*2.4});
   }
   function up(event:ReactPointerEvent<SVGSVGElement>){
-    if(paintStroke.current){if(tool!=='start'&&tool!=='hole')paintTo(pointerPoint(event));paintStroke.current=null;return;}
+    if(paintStroke.current){if(tool!=='start'&&tool!=='hole')paintTo(pointerPoint(event));if(paintStroke.current.changed)setMessage('Tiles updated');paintStroke.current=null;return;}
     if(!dragRef.current)return;const p=pointerPoint(event);const v={x:(dragRef.current.x-p.x)*2.4,y:(dragRef.current.y-p.y)*2.4};dragRef.current=null;shoot(v);setAim(null);
   }
   function toggleSound(){
     if(!sound){try{audioRef.current??=new AudioContext();void audioRef.current.resume();}catch{setMessage('Sound is unavailable in this browser.');return;}}
-    setSound(!sound);
+    setSound(!sound);setMessage(sound?'Sound off':'Sound on');
   }
   useEffect(()=>{
     if(ball.status!=='won'||!sound||!audioRef.current)return;
@@ -130,29 +134,37 @@ export default function App() {
       oscillator.connect(gain);gain.connect(context.destination);oscillator.start(time);oscillator.stop(time+.36);oscillator.onended=()=>{oscillator.disconnect();gain.disconnect();};
     });
   },[ball.status,sound]);
-  async function share(){const url=new URL(location.href);url.hash=encodeCourse(ball.status==='won'&&shots<=10000?{...course,challenge:shots}:course);try{await navigator.clipboard.writeText(url.href);setMessage(ball.status==='won'?'Challenge link copied with your score.':'Course link copied. Send a little challenge.');}catch{setShareValue(url.href);setMessage('Copy this link to send your course.');}}
+  async function share(){
+    if(sharingRef.current)return;
+    sharingRef.current=true;setSharing(true);setShareValue('');setMessage('Copying link…');
+    const url=new URL(location.href);url.hash=encodeCourse(ball.status==='won'&&shots<=10000?{...course,challenge:shots}:course);
+    try{await navigator.clipboard.writeText(url.href);setMessage(ball.status==='won'?'Challenge link copied with your score!':'Course link copied! Ready to share.');}
+    catch{setShareValue(url.href);setMessage('Couldn’t copy automatically. Select and copy the link below.');}
+    finally{sharingRef.current=false;setSharing(false);}
+  }
+
   const ballPoint=screen(mode==='edit'?course.start:ball),holePoint=screen(course.hole);
   const aimVector=aim??{x:Math.cos(angle*Math.PI/180)*power/11,y:Math.sin(angle*Math.PI/180)*power/11};
   const preview=useMemo(()=>mode==='play'&&ball.status==='idle'?previewShot(ball,aimVector,course).map(screen):[],[mode,ball,aimVector.x,aimVector.y,course]);
   return <div className={`app-shell ${mode}`}>
-    <header><a href="/" className="wordmark"><span className="brand-icon"><Logo /></span> golf this!</a><button className="share-button" onClick={share}>Share course <span><ActionIcon kind="share"/></span></button></header>
+    <header><a href="/" className="wordmark"><span className="brand-icon"><Logo /></span> golf this!</a><button className="share-button" onClick={share} disabled={sharing} aria-busy={sharing}>Share course <span><ActionIcon kind="share"/></span></button></header>
     <main>
       <aside className="workbench">
         <h1>{mode==='edit'?'Make it yours.':'Let’s putt!'}</h1>
-        {!isShared&&<div className="mode-switch" aria-label="Course mode"><button aria-pressed={mode==='edit'} onClick={()=>{setMode('edit');reset();}}><strong>Build</strong></button><button aria-pressed={mode==='play'} onClick={()=>{setMode('play');reset();}}><strong>Play</strong> <span><ActionIcon kind="play"/></span></button></div>}
+        {!isShared&&<div className="mode-switch" aria-label="Course mode"><button aria-pressed={mode==='edit'} onClick={()=>{setMode('edit');reset('Builder ready');}}><strong>Build</strong></button><button aria-pressed={mode==='play'} onClick={()=>{setMode('play');reset('Ready to putt');}}><strong>Play</strong> <span><ActionIcon kind="play"/></span></button></div>}
         {mode==='edit'?<>
           <label className="field-label" htmlFor="course-name">Course name</label><input id="course-name" className="name-input" maxLength={48} value={course.name} onChange={e=>setCourse({...course,name:e.target.value,challenge:undefined})}/>
           <div className="field-label toolbox-label">Choose a tile</div>
-          <div className="toolbox">{tools.map(t=><button key={t.id} className={`tool tool-${t.id}`} aria-pressed={tool===t.id} title={t.help} onClick={()=>setTool(t.id)}><span className="tool-icon" aria-hidden="true"><ToolIcon kind={t.id}/></span>{t.name}</button>)}</div>
-          <div className="editor-bottom"><label htmlFor="par">Par <select id="par" value={course.par} onChange={e=>update({...course,par:Number(e.target.value)})}>{[1,2,3,4,5,6,7,8,9].map(n=><option key={n}>{n}</option>)}</select></label><button className="text-button" disabled={!history.length} onClick={()=>{setCourse(history[history.length-1]);setHistory(h=>h.slice(0,-1));}}>Undo <ActionIcon kind="undo"/></button></div>
-          <div className="starter-label">Try a course</div><div className="templates">{['The detour','Water garden','Easy Sunday'].map((label,index)=><button key={label} onClick={()=>update(preset(index))}>{label}</button>)}<button className="random-button" onClick={()=>update(randomCourse())}>Surprise me <ActionIcon kind="restart"/></button></div>
+          <div className="toolbox">{tools.map(t=><button key={t.id} className={`tool tool-${t.id}`} aria-pressed={tool===t.id} title={t.help} onClick={()=>{setTool(t.id);setMessage(`${t.name} selected. ${t.help}.`);}}><span className="tool-icon" aria-hidden="true"><ToolIcon kind={t.id}/></span>{t.name}</button>)}</div>
+          <div className="editor-bottom"><label htmlFor="par">Par <select id="par" value={course.par} onChange={e=>update({...course,par:Number(e.target.value)})}>{[1,2,3,4,5,6,7,8,9].map(n=><option key={n}>{n}</option>)}</select></label><button className="text-button" disabled={!history.length} onClick={()=>{setCourse(history[history.length-1]);setHistory(h=>h.slice(0,-1));setMessage('Last edit undone');}}>Undo <ActionIcon kind="undo"/></button></div>
+          <div className="starter-label">Try a course</div><div className="templates">{['The detour','Water garden','Easy Sunday'].map((label,index)=><button key={label} onClick={()=>update(preset(index),`${label} loaded`)}>{label}</button>)}<button className="random-button" onClick={()=>update(randomCourse(),'Fresh course generated!')}>Surprise me <ActionIcon kind="restart"/></button></div>
         </>:<>
           {course.challenge?<p className="challenge-target">Score to beat: <strong>{course.challenge} {course.challenge===1?'stroke':'strokes'}</strong></p>:null}
           <div className="scoreboard"><div><span>STROKES</span><strong>{shots.toString().padStart(2,'0')}</strong></div><div><span>PAR</span><strong>{course.par.toString().padStart(2,'0')}</strong></div></div>
           <p className="play-instruction">Drag back on the course, then release to putt.</p>
           <label className="range-label" htmlFor="angle">Aim <span>{angle}°</span></label><input id="angle" type="range" min="-180" max="180" value={angle} disabled={moving} onChange={e=>setAngle(Number(e.target.value))}/>
           <label className="range-label" htmlFor="power">Power <span>{power}%</span></label><input id="power" type="range" min="5" max="100" value={power} disabled={moving} onChange={e=>setPower(Number(e.target.value))}/>
-          <button className="putt-button" disabled={ball.status!=='idle'} onClick={()=>shoot(aimVector)}>{moving?'Rolling…':'Putt'} <span><ActionIcon/></span></button><button className="text-button restart" onClick={reset}>Start over <ActionIcon kind="restart"/></button>
+          <button className="putt-button" disabled={ball.status!=='idle'} onClick={()=>shoot(aimVector)}>{moving?'Rolling…':'Putt'} <span><ActionIcon/></span></button><button className="text-button restart" onClick={()=>reset()}>Start over <ActionIcon kind="restart"/></button>
         </>}
         <button className="text-button sound-toggle" aria-pressed={sound} onClick={toggleSound}>Sound {sound?'on':'off'}</button>
       </aside>
@@ -173,12 +185,12 @@ export default function App() {
         ].sort((a,b)=>a.depth-b.depth).map(item=><g key={item.key} pointerEvents="none">{item.node}</g>)}
         </svg>
         <p className="course-hint">{mode==='edit'?'Drag to paint. Tap to place.':moving?'Keep rolling…':'Drag back. Let it fly.'}</p>
-        {ball.status==='won'&&mode==='play'?<div className="outcome" role="status"><div className="confetti" aria-hidden="true">{Array.from({length:24},(_,i)=><i key={i} style={{left:`${(i*37)%100}%`,background:['#ffda69','#ff6259','#81de7b','#c6a7ff'][i%4],animationDelay:`${i%6*.06}s`,rotate:`${i*47}deg`}}/>)}</div><span className="outcome-icon">⚑</span><h3>{shots===1?'A hole in one!':'Nicely done.'}</h3><p>{shots} {shots===1?'stroke':'strokes'}. {shots<=course.par?'A little masterpiece.':'Worth another round.'}</p>{course.challenge?<p className="challenge-result">{shots<course.challenge?'You beat the challenge!':shots===course.challenge?'You matched the challenge!':'Challenge still stands. Try again?'}</p>:null}<div><button onClick={reset}>Play again</button><button onClick={share}>Pass it on <ActionIcon kind="share"/></button></div></div>:null}
-        {ball.status==='water'&&mode==='play'?<div className="outcome small" role="status"><h3>A little splash.</h3><p>Back to your last spot. One penalty stroke.</p><button onClick={()=>{setBall(freshBall(shotStart.current));setShots(n=>n+1);}}>Take a drop <ActionIcon kind="restart"/></button></div>:null}
+        {ball.status==='won'&&mode==='play'?<div className="outcome" role="status"><div className="confetti" aria-hidden="true">{Array.from({length:24},(_,i)=><i key={i} style={{left:`${(i*37)%100}%`,background:['#ffda69','#ff6259','#81de7b','#c6a7ff'][i%4],animationDelay:`${i%6*.06}s`,rotate:`${i*47}deg`}}/>)}</div><span className="outcome-icon">⚑</span><h3>{shots===1?'A hole in one!':'Nicely done.'}</h3><p>{shots} {shots===1?'stroke':'strokes'}. {shots<=course.par?'A little masterpiece.':'Worth another round.'}</p>{course.challenge?<p className="challenge-result">{shots<course.challenge?'You beat the challenge!':shots===course.challenge?'You matched the challenge!':'Challenge still stands. Try again?'}</p>:null}<div><button onClick={()=>reset()}>Play again</button><button onClick={share} disabled={sharing} aria-busy={sharing}>Pass it on <ActionIcon kind="share"/></button></div></div>:null}
+        {ball.status==='water'&&mode==='play'?<div className="outcome small" role="status"><h3>A little splash.</h3><p>Back to your last spot. One penalty stroke.</p><button onClick={()=>{setBall(freshBall(shotStart.current));setShots(n=>n+1);setMessage('Back on the green. One penalty stroke added.');}}>Take a drop <ActionIcon kind="restart"/></button></div>:null}
       </section>
     </main>
     <footer className="site-footer"><a href="/terms.html">Terms</a><a href="/privacy.html">Privacy</a><a href="https://www.stepanblaha.com/">Made by Štěpán Bláha</a></footer>
-    <div className="status-line" role="status">{message}</div>{shareValue?<input className="share-fallback" ref={shareRef} aria-label="Shareable course link" value={shareValue} readOnly/>:null}
+    <div className="toast-region" role="status" aria-live="polite" aria-atomic="true">{toast.text&&<div className="action-toast" key={toast.id}><span className="toast-mark" aria-hidden="true">{sharing?'…':'●'}</span><span>{toast.text}</span><button className="toast-dismiss" aria-label="Dismiss notification" onClick={()=>setMessage('')}>×</button></div>}</div>{shareValue?<input className="share-fallback" ref={shareRef} aria-label="Shareable course link" value={shareValue} readOnly/>:null}
     
   </div>;
 }
